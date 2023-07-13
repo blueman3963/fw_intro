@@ -11,11 +11,20 @@ export default function Intro() {
   let progress = {
     value: .5
   }
+  let color = {
+    range: .5,
+    value: .8,
+    satuation: .9
+  }
 
   const fShader = `
     precision highp float;
 
     uniform sampler2D map;
+    uniform float colorRange;
+    uniform float satuation;
+    uniform float value;
+    uniform float time;
 
     varying vec2 vUv;
     varying float vScale;
@@ -37,7 +46,7 @@ export default function Intro() {
 
     void main() {
       vec4 diffuseColor = texture2D( map, vUv );
-      gl_FragColor = vec4( diffuseColor.xyz * HSLtoRGB(vec3(vScale/14.0 + .1, .9, .8)), diffuseColor.w );
+      gl_FragColor = vec4( diffuseColor.xyz * HSLtoRGB(vec3(vScale*colorRange + time * .5, satuation, value)), diffuseColor.w );
 
       if ( diffuseColor.w < 0.5 ) discard;
     }
@@ -48,8 +57,9 @@ export default function Intro() {
     uniform mat4 modelViewMatrix;
     uniform mat4 projectionMatrix;
     uniform float time;
-    uniform float border;
-    uniform float core;
+    uniform float progressIn;
+    uniform float progressOut;
+
 
     attribute vec3 position;
     attribute vec2 uv;
@@ -60,15 +70,20 @@ export default function Intro() {
 
     void main() {
 
+      //modifier
+      float l = length(translate);
+      float inAmp = max((progressIn*3.-l)/l, .0);
+      float outAmp = max(-(pow(progressOut, 2.)*3.-l)/l, .0);
+
+      //position
+      vec4 mvPosition = modelViewMatrix * vec4( translate * inAmp * outAmp, 1.0 );
+
+      //scale animation
       vec3 trTime = vec3(translate.x + time,translate.y + time,translate.z + time);
       float scale =  sin( trTime.x * 2.1 ) + sin( trTime.y * 3.2 ) + sin( trTime.z * 4.3 );
-      float amp = max(min(border - length(translate),0.1)*10.0, 0.0);
-      float amp2 = max(min(length(translate) - core,0.1)*10.0, 0.0);
-
-      vec4 mvPosition = modelViewMatrix * vec4( translate, 1.0 );
 
       vScale = scale;
-      scale = (scale * 5.0 + 5.0) * amp * amp2;
+      scale = (scale * 5.0 + 5.0);
       mvPosition.xyz += position * scale;
       vUv = uv;
       gl_Position = projectionMatrix * mvPosition;
@@ -122,9 +137,12 @@ export default function Intro() {
     material = new THREE.RawShaderMaterial( {
       uniforms: {
         'map': { value: new THREE.TextureLoader().load( './tex/circle.png' ) },
-        'time': { value: 0.0 },
-        'border': { value: 0 },
-        'core': { value: 0 }
+        'time': { value: .0 },
+        'progressIn': { value: .0 },
+        'progressOut': { value: .0 },
+        'colorRange': { value: .5 },
+        'value': { value: .8 },
+        'satuation': { value: .9 }
       },
       vertexShader: vShader,
       fragmentShader: fShader,
@@ -151,6 +169,9 @@ export default function Intro() {
     const progressFolder = gui.addFolder('progress')
     progressFolder.add(progress, 'value', 0, 1)
     progressFolder.open()
+    const colorFolder = gui.addFolder('color')
+    colorFolder.add(material.uniforms[ 'colorRange' ], 'value', 0, 1)
+    colorFolder.open()
 
 
     //render
@@ -171,13 +192,13 @@ export default function Intro() {
 
     const time = performance.now() * 0.0005
     material.uniforms[ 'time' ].value = time
-    material.uniforms[ 'border' ].value = Math.min(progress.value * 4, 2)
-    material.uniforms[ 'core' ].value = Math.max(progress.value * 4 - 2, 0)
+    material.uniforms[ 'progressIn' ].value = Math.min(progress.value * 2, 1)
+    material.uniforms[ 'progressOut' ].value = Math.max(progress.value * 2 - 1, 0)
 
     mesh.rotation.x = time * 0.2
     mesh.rotation.y = time * 0.4
 
-    camera.position.z = 50 + (1 - Math.pow(progress.value * 2 - 1, 2)) * 1400
+    camera.position.z = 1400 + (1 - Math.pow(progress.value * 2 - 1, 2)) * 1400
 
     renderer.render( scene, camera )
 
